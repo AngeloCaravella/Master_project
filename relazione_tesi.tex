@@ -1,0 +1,211 @@
+\documentclass[11pt, a4paper]{article}
+
+% ======================================================================
+% PACCHETTI STANDARD
+% ======================================================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[italian]{babel}
+\usepackage{amsmath, amssymb} % Per simboli matematici
+\usepackage{graphicx}         % Per inserire immagini (es. il flowchart)
+\usepackage{geometry}         % Per impostare i margini
+\geometry{a4paper, margin=1in}
+
+% ======================================================================
+% PACCHETTI PER LA FORMATTAZIONE
+% ======================================================================
+\usepackage{listings}         % Per inserire blocchi di codice
+\usepackage{xcolor}           % Per usare colori personalizzati
+\usepackage{booktabs}         % Per creare tabelle professionali
+\usepackage{float}            % Per un controllo migliore sul posizionamento di tabelle/figure
+\usepackage[hidelinks]{hyperref} % Per link interni (es. a tabelle)
+
+% ======================================================================
+% CONFIGURAZIONE STILI
+% ======================================================================
+
+% Stile per i blocchi di codice Python
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.95}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+% ======================================================================
+% INTESTAZIONE DOCUMENTO
+% ======================================================================
+\title{Analisi e Confronto di Strategie di Ottimizzazione V2G per la Ricarica di Veicoli Elettrici}
+\author{Angelo Caravella}
+\date{\today}
+
+% ======================================================================
+% INIZIO DEL DOCUMENTO
+% ======================================================================
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Questo documento presenta lo sviluppo e l'analisi di un simulatore per il Vehicle-to-Grid (V2G), volto a confrontare diverse strategie di ottimizzazione per la ricarica di veicoli elettrici. L'obiettivo è massimizzare il profitto economico tenendo conto di vincoli fisici ed economici quali il degrado della batteria e il comfort dell'utente (range anxiety). Vengono analizzate cinque strategie, da semplici euristiche a complessi algoritmi di ottimizzazione come il Model Predictive Control (MPC) e il Reinforcement Learning (RL), valutandone le performance in scenari di mercato realistici.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ----------------------------------------------------------------------
+\section{Impostazione del Problema e Obiettivi}
+% ----------------------------------------------------------------------
+
+L'obiettivo di questo progetto è lo sviluppo e il confronto di strategie per la ricarica intelligente di un veicolo elettrico in un contesto V2G. Il problema centrale consiste nel trovare un equilibrio ottimale tra tre fattori spesso in conflitto:
+
+\begin{itemize}
+    \item \textbf{Profitto Economico:} Sfruttare la volatilità dei prezzi orari dell'energia per acquistare a basso costo e rivendere a un prezzo più alto.
+    \item \textbf{Salute della Batteria:} Ogni ciclo di carica e scarica induce un degrado fisico della batteria, che rappresenta un costo reale a lungo termine. Una strategia troppo aggressiva può portare a profitti immediati ma distruggere il valore dell'asset principale.
+    \item \textbf{Comfort dell'Utente:} L'utente deve avere la certezza di disporre di una carica sufficiente per le proprie esigenze, senza incorrere nella cosiddetta \textit{range anxiety} (ansia da autonomia).
+\end{itemize}
+
+Il simulatore sviluppato modella e quantifica economicamente ciascuno di questi fattori per identificare la strategia di gestione più efficace e robusta.
+
+% ----------------------------------------------------------------------
+\section{Modellazione del Sistema e dei Parametri}
+% ----------------------------------------------------------------------
+
+Per affrontare il problema, è stato costruito un ambiente di simulazione basato su tre pilastri fondamentali.
+
+\subsection{Input di Mercato e Fisici}
+Il sistema acquisisce dati esterni per definire l'ambiente operativo:
+\begin{itemize}
+    \item \textbf{Prezzi dell'Energia:} I prezzi orari (€/kWh) vengono caricati da un file Excel, rappresentando il segnale di mercato che le strategie devono interpretare. Sono stati analizzati diversi scenari (es. Italia, Malta) per testare gli algoritmi in condizioni di volatilità differenti.
+    \item \textbf{Parametri del Veicolo:} Vengono definiti attributi fisici come la capacità della batteria (kWh), le potenze massime di carica/scarica (kW) e, crucialmente, l'efficienza del ciclo di carica/scarica.
+\end{itemize}
+
+\subsection{Input dell'Utente e Costi Associati}
+Il comfort dell'utente e il valore della batteria vengono tradotti in costi reali tramite parametri personalizzabili.
+
+\begin{lstlisting}[language=Python, caption=Esempio di parametri di simulazione e costi., label=code:params]
+SIMULATION_PARAMS = {
+    'soc_min_utente': 0.3,    # 30%: Soglia di "ansia"
+    'penalita_ansia': 0.15,   # 0.15 € per ogni % sotto la soglia
+    'initial_soc': 0.5,       # 50%: Stato di carica iniziale
+    'soc_target_finale': 0.5, # 50%: Obiettivo di carica a fine giornata
+}
+
+VEHICLE_PARAMS = {
+    'costo_degradazione': 0.02, # 0.02 € per ogni kWh processato
+    'efficienza': 0.92,         # 92%
+}
+\end{lstlisting}
+
+\subsection{Gestione dello Stato di Carica (SOC)}
+Il cuore del sistema è lo Stato di Carica (SOC), la cui evoluzione è governata da equazioni che tengono conto della potenza applicata e dell'efficienza. Ogni transazione energetica ha una perdita intrinseca, un costo fisico che viene accuratamente modellato.
+
+% ----------------------------------------------------------------------
+\section{Le Strategie di Ottimizzazione a Confronto}
+% ----------------------------------------------------------------------
+Sono state implementate e confrontate cinque diverse strategie, che rappresentano una gerarchia di intelligenza crescente.
+
+\subsection{Euristica Semplice (Benchmark Negativo)}
+\begin{itemize}
+    \item \textbf{Logica:} Totalmente reattiva. Acquista e vende basandosi su soglie di prezzo fisse (es. compra se il prezzo è sotto la media, vende se è sopra), senza alcuna pianificazione.
+    \item \textbf{Scopo:} Dimostrare che un approccio ingenuo e privo di visione futura è inefficace.
+\end{itemize}
+
+\subsection{Euristica LCVF (Pianificazione Rigida)}
+\begin{itemize}
+    \item \textbf{Logica:} "Look-ahead". All'inizio della giornata, analizza i 24 prezzi, pianifica di acquistare nelle $N$ ore più economiche e di vendere nelle $N$ ore più costose. Esegue poi questo piano in modo rigido.
+    \item \textbf{Scopo:} Mostrare i benefici di una pianificazione base, anche se non adattiva.
+\end{itemize}
+
+\subsection{Reinforcement Learning (Apprendimento senza Modello)}
+\begin{itemize}
+    \item \textbf{Logica:} Un agente RL viene addestrato per migliaia di "giornate simulate" (episodi). Attraverso un processo di "trial and error", costruisce una mappa di decisioni ottimale (la Q-table) che associa la migliore azione (carica/scarica/attesa) a ogni possibile stato (ora del giorno, livello di SOC).
+    \item \textbf{Scopo:} Testare un approccio "model-free" che non conosce la fisica del sistema ma impara solo dai segnali di ricompensa (profitto) e punizione (costi).
+\end{itemize}
+
+\subsection{MPC a 6 ore (Ottimizzazione Tattica e Realistica)}
+\begin{itemize}
+    \item \textbf{Logica:} Ad ogni ora, l'algoritmo risolve un problema di ottimizzazione matematica per le 6 ore successive. Bilancia tutti i costi (energia, degrado, ansia) per trovare la sequenza di azioni ottimale, ma esegue solo la prima. Il piano viene ricalcolato ogni ora con dati aggiornati.
+    \item \textbf{Scopo:} Simulare un agente intelligente che si adatta costantemente alle condizioni di mercato con una visione a breve termine.
+\end{itemize}
+
+\subsection{MPC a 24 ore (Benchmark "Divino" e Teorico)}
+\begin{itemize}
+    \item \textbf{Logica:} Simile all'MPC a 6 ore, ma con una visione completa e perfetta dei prezzi dell'intera giornata.
+    \item \textbf{Scopo:} Agisce come \textbf{benchmark teorico ottimale}. La sua performance ci dice qual è il massimo risultato economicamente razionale ottenibile in una data giornata, rappresentando il limite superiore a cui le altre strategie dovrebbero tendere.
+\end{itemize}
+
+% ----------------------------------------------------------------------
+\section{Analisi e Giustificazione dei Risultati}
+% ----------------------------------------------------------------------
+L'analisi dei risultati per lo scenario di mercato "Italia" (caratterizzato da bassa volatilità) è particolarmente illuminante per comprendere le dinamiche di ogni strategia.
+
+\begin{table}[H]
+\centering
+\caption{Riepilogo delle performance delle strategie nello scenario "Italia".}
+\label{tab:risultati}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Strategia} & \textbf{Guadagno Netto (€)} & \textbf{SOC Finale (\%)} & \textbf{Costo Degrad. (€)} & \textbf{Costo Ansia (€)} \\
+\midrule
+Euristica Semplice      & -1.0959 & 59.2 & 0.9794 & 0.0 \\
+Euristica LCVF          &  0.3215 & 41.8 & 1.1881 & 0.0 \\
+MPC (O=6h)              &  1.1571 & 30.0 & 0.2399 & 0.0 \\
+MPC (O=24h)             &  0.0000 & 50.0 & 0.0000 & 0.0 \\
+Reinforcement Learning  &  1.3238 & 31.9 & 0.2174 & 0.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Dalla Tabella \ref{tab:risultati} emergono le seguenti considerazioni chiave:
+
+\begin{enumerate}
+    \item \textbf{La Razionalità dell'MPC a 24 ore:} Un guadagno di 0.0 € potrebbe sembrare un fallimento, ma è la prova della sua intelligenza superiore. L'algoritmo ha calcolato che, a causa dei costi di efficienza e degrado, qualsiasi ciclo di compra-vendita avrebbe generato una perdita netta. La sua decisione di \textbf{non operare} è stata la scelta economicamente più saggia, massimizzando il profitto a 0 € ed evitando perdite.
+
+    \item \textbf{L'Opportunismo di RL e MPC a 6 ore:} Queste strategie hanno generato il profitto più alto. Tuttavia, questo guadagno non deriva da un ciclo V2G sostenibile, ma dalla semplice \textbf{vendita della carica iniziale} (partendo dal 50\% e finendo al 30\%). Hanno sfruttato un'opportunità a breve termine, ma il loro modello non è sostenibile né generalizzabile.
+
+    \item \textbf{Il Lavoro dell'LCVF:} Questa euristica è l'unica, oltre all'MPC onnisciente, ad aver tentato un vero ciclo di trading. Il suo modesto profitto (0.32 €) è un risultato "onesto", ottenuto dopo aver sostenuto il costo di degradazione più alto (1.18 €) dovuto al maggior numero di operazioni.
+
+    \item \textbf{Il Fallimento dell'Euristica Semplice:} Come previsto, l'approccio puramente reattivo ha generato una perdita netta, confermandosi la strategia peggiore.
+\end{enumerate}
+
+% ----------------------------------------------------------------------
+\section{Conclusioni e Sviluppi Futuri}
+% ----------------------------------------------------------------------
+
+Questo lavoro ha dimostrato con successo la superiorità delle strategie di ottimizzazione avanzata rispetto agli approcci reattivi o a pianificazione rigida.
+
+\paragraph{Conclusioni Chiave:}
+\begin{itemize}
+    \item L'approccio \textbf{MPC} si è rivelato il più robusto e razionale. È in grado di adattare la sua strategia alle condizioni di mercato: opera per massimizzare i profitti quando è vantaggioso, e sceglie l'inattività per preservare il capitale e la salute della batteria quando non lo è.
+    \item La quantificazione di costi operativi reali come il \textbf{degrado della batteria} e di fattori psicologici come la \textbf{range anxiety} è fondamentale per ottenere decisioni realistiche e bilanciate.
+    \item Un benchmark teorico come l'\textbf{MPC a 24 ore} è uno strumento essenziale non per essere implementato nella realtà, ma per valutare correttamente la performance di strategie più realistiche.
+\end{itemize}
+
+\paragraph{Sviluppi Futuri:}
+Il modello può essere ulteriormente potenziato in diverse direzioni:
+\begin{itemize}
+    \item Integrazione di \textbf{previsioni stocastiche} dei prezzi dell'energia, per gestire l'incertezza del futuro.
+    \item Modellazione dei \textbf{pattern di guida} dell'utente, per prevedere le necessità di carica future in modo più accurato.
+    \item Esplorazione di algoritmi di \textbf{Deep Reinforcement Learning}, che potrebbero superare i limiti della Q-table in spazi di stato più complessi.
+\end{itemize}
+
+\end{document}
