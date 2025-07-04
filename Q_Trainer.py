@@ -1,12 +1,10 @@
-
-
 # ========================================================================
 # V2G Q-TABLE BATCH TRAINER
-# Author: Angelo Caravella & Gemini
-# Version: 1.0
-# Description: Strumento di addestramento automatico e di massa per Q-table.
-#              Lo script controlla tutte le tabelle mancanti per ogni combinazione
-#              di profilo/batteria e le addestra in autonomia.
+# Author: Angelo Caravella 
+# Version: 1.1
+# Description: Strumento di addestramento automatico per Q-table. Implementa
+#              configurazioni di profilo utente corrette (con SoC iniziale
+#              dinamico) e una logica di Early Stopping per un training efficiente.
 # ========================================================================
 
 import numpy as np
@@ -17,18 +15,27 @@ import sys
 from typing import Dict, List, Tuple
 
 # ========================================================================
-# CONFIGURAZIONI PREDEFINITE (Copiate da New.py per coerenza)
+# CONFIGURAZIONI PREDEFINITE
 # ========================================================================
 
 USER_PROFILES = {
     'conservativo': {
-        'soc_min_utente': 0.60, 'penalita_ansia': 0.02, 'soc_target_finale': 0.70,
+        'initial_soc': 0.70,
+        'soc_min_utente': 0.60, 
+        'penalita_ansia': 0.02, 
+        'soc_target_finale': 0.70,
     },
     'bilanciato': {
-        'soc_min_utente': 0.30, 'penalita_ansia': 0.01, 'soc_target_finale': 0.50,
+        'initial_soc': 0.50,
+        'soc_min_utente': 0.30, 
+        'penalita_ansia': 0.01, 
+        'soc_target_finale': 0.50,
     },
     'aggressivo': {
-        'soc_min_utente': 0.15, 'penalita_ansia': 0.005, 'soc_target_finale': 0.20,
+        'initial_soc': 0.20,
+        'soc_min_utente': 0.15, 
+        'penalita_ansia': 0.005, 
+        'soc_target_finale': 0.20,
     }
 }
 
@@ -49,17 +56,14 @@ BASE_VEHICLE_PARAMS = {
     'efficienza_scarica': 0.95, 'soc_max': 0.9, 'soc_min_batteria': 0.1, 'lfp_k_slope': 0.0035,
 }
 
-BASE_SIMULATION_PARAMS = {
-    'initial_soc': 0.5,
-}
-
 RL_PARAMS = {
     'states_ora': 24, 'states_soc': 11, 'alpha': 0.1, 'gamma': 0.98,
     'epsilon': 1.0, 'epsilon_decay': 0.99985, 'epsilon_min': 0.01, 'episodes': 100000,
+    'early_stopping_patience': 100 # N. di controlli (x100 episodi) senza miglioramenti prima di fermarsi
 }
 
 # ========================================================================
-# CLASSI DI SIMULAZIONE (Minime, per il training)
+# CLASSI DI SIMULAZIONE
 # ========================================================================
 
 class BatteryDegradationModel:
@@ -130,14 +134,24 @@ class RLAgentTrainer:
         print(f"\n--- AVVIO ADDESTRAMENTO PER Q-TABLE '{q_table_path}' ---")
         rl_p = RL_PARAMS
         q_table = np.zeros((rl_p['states_ora'], rl_p['states_soc'], len(self.actions_map)))
+        best_q_table = np.copy(q_table)
         epsilon = rl_p['epsilon']
+        
+        # Parametri per Early Stopping
+        best_avg_reward = -np.inf
+        patience = rl_p.get('early_stopping_patience', 100)
+        patience_counter = 0
+        total_rewards = []
+
         for episode in range(rl_p['episodes']):
             episode_prices = random.choice(training_daily_profiles)
             soc = self.sim_params['initial_soc']
+            episode_reward = 0
             for ora in range(rl_p['states_ora']):
                 soc_discrete = self._discretize_soc(soc, rl_p['states_soc'])
                 azione = random.randint(0, len(self.actions_map) - 1) if random.random() < epsilon else np.argmax(q_table[ora, soc_discrete])
                 new_soc, reward = self._get_rl_step_result(soc, ora, azione, episode_prices, last_hour=(ora == rl_p['states_ora'] - 1))
+                episode_reward += reward
                 new_soc_discrete = self._discretize_soc(new_soc, rl_p['states_soc'])
                 next_q_value = 0
                 if ora < rl_p['states_ora'] - 1: next_q_value = np.max(q_table[ora + 1, new_soc_discrete])
@@ -145,12 +159,30 @@ class RLAgentTrainer:
                 new_q = (1 - rl_p['alpha']) * current_q + rl_p['alpha'] * (reward + rl_p['gamma'] * next_q_value)
                 q_table[ora, soc_discrete, azione] = new_q
                 soc = new_soc
+            
+            total_rewards.append(episode_reward)
             epsilon = max(rl_p['epsilon_min'], epsilon * rl_p['epsilon_decay'])
-            if (episode + 1) % 20000 == 0: print(f"Episodio {episode + 1}/{rl_p['episodes']}, Epsilon: {epsilon:.4f}")
+
+            # Logica di Early Stopping
+            if (episode + 1) % 100 == 0:
+                avg_reward = np.mean(total_rewards[-100:])
+                print(f"Episodio {episode + 1}/{rl_p['episodes']}, Avg Reward (100 ep): {avg_reward:.2f}, Epsilon: {epsilon:.4f}")
+                if avg_reward > best_avg_reward:
+                    best_avg_reward = avg_reward
+                    best_q_table = np.copy(q_table)
+                    patience_counter = 0
+                    print(f"  -> Nuovo record di Avg Reward! Pazienza resettata.")
+                else:
+                    patience_counter += 1
+                
+                if patience_counter >= patience:
+                    print(f"\nATTENZIONE: Nessun miglioramento per {patience * 100} episodi. Interruzione anticipata.")
+                    break
+
         q_table_dir = os.path.dirname(q_table_path)
         if q_table_dir and not os.path.exists(q_table_dir): os.makedirs(q_table_dir)
-        np.save(q_table_path, q_table)
-        print(f"--- Addestramento per '{q_table_path}' completato! ---")
+        np.save(q_table_path, best_q_table)
+        print(f"--- Addestramento completato! Tabella migliore salvata in '{q_table_path}' con Avg Reward: {best_avg_reward:.2f} ---")
 
 # ========================================================================
 # FUNZIONI AUSILIARIE
@@ -208,7 +240,7 @@ def main():
             print("STATO: Non trovata. Avvio addestramento...")
             trained_count += 1
 
-            sim_config = {**BASE_SIMULATION_PARAMS, **profile_params}
+            sim_config = {**profile_params}
             vehicle_config = {**BASE_VEHICLE_PARAMS, **chem_params}
             
             trainer = RLAgentTrainer(vehicle_config, sim_config)

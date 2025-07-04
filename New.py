@@ -1,11 +1,9 @@
-
-
 # ========================================================================
 # V2G INTERACTIVE ANALYSIS DASHBOARD
-# Author: Angelo Caravella & Gemini
-# Version: 2.9
-# Description: Versione finale che carica dinamicamente agenti specializzati
-#              sia per DQN che per RL Tabulare, garantendo un confronto equo.
+# Author: Angelo Caravella 
+# Version: 3.0
+# Description: Versione finale con logica di configurazione corretta (SoC
+#              iniziale dinamico) e caricamento di agenti specializzati.
 #
 # Requisiti Aggiuntivi:
 # pip install torch
@@ -33,13 +31,13 @@ except ImportError:
 
 USER_PROFILES = {
     'conservativo': {
-        'soc_min_utente': 0.60, 'penalita_ansia': 0.02, 'soc_target_finale': 0.70,
+        'initial_soc': 0.70, 'soc_min_utente': 0.60, 'penalita_ansia': 0.02, 'soc_target_finale': 0.70,
     },
     'bilanciato': {
-        'soc_min_utente': 0.30, 'penalita_ansia': 0.01, 'soc_target_finale': 0.50,
+        'initial_soc': 0.50, 'soc_min_utente': 0.30, 'penalita_ansia': 0.01, 'soc_target_finale': 0.50,
     },
     'aggressivo': {
-        'soc_min_utente': 0.15, 'penalita_ansia': 0.005, 'soc_target_finale': 0.20,
+        'initial_soc': 0.20, 'soc_min_utente': 0.15, 'penalita_ansia': 0.005, 'soc_target_finale': 0.20,
     }
 }
 
@@ -61,7 +59,7 @@ BASE_VEHICLE_PARAMS = {
 }
 
 BASE_SIMULATION_PARAMS = {
-    'initial_soc': 0.5, 'mpc_horizon': 12,
+    'mpc_horizon': 12,
 }
 
 RL_PARAMS = {
@@ -282,9 +280,12 @@ def create_daily_profiles(df: pd.DataFrame, test_zone: str = "Italia") -> Tuple[
     return training_profiles, test_profiles
 
 def validate_config(vehicle_params, sim_params):
-    if not (0 <= vehicle_params['soc_min_batteria'] < sim_params['soc_min_utente'] < vehicle_params['soc_max'] <= 1): raise ValueError("Vincolo logico violato: 0 <= soc_min_batteria < soc_min_utente < soc_max <= 1")
-    if not (vehicle_params['soc_min_batteria'] <= sim_params['initial_soc'] <= vehicle_params['soc_max']): raise ValueError("Vincolo logico violato: soc_min_batteria <= initial_soc <= soc_max")
-    if not (vehicle_params['soc_min_batteria'] <= sim_params['soc_target_finale'] <= vehicle_params['soc_max']): raise ValueError("Vincolo logico violato: soc_min_batteria <= soc_target_finale <= soc_max")
+    if not (0 <= vehicle_params['soc_min_batteria'] < sim_params['soc_min_utente'] < vehicle_params['soc_max'] <= 1):
+        raise ValueError("Vincolo logico violato: 0 <= soc_min_batteria < soc_min_utente < soc_max <= 1")
+    if not (vehicle_params['soc_min_batteria'] <= sim_params['initial_soc'] <= vehicle_params['soc_max']):
+        raise ValueError("Vincolo logico violato: soc_min_batteria <= initial_soc <= soc_max")
+    if not (vehicle_params['soc_min_batteria'] <= sim_params['soc_target_finale'] <= vehicle_params['soc_max']):
+        raise ValueError("Vincolo logico violato: soc_min_batteria <= soc_target_finale <= soc_max")
     print("Configurazione valida.")
 
 def compare_strategies(results: Dict[str, pd.DataFrame]) -> pd.DataFrame:
@@ -303,11 +304,11 @@ def compare_strategies(results: Dict[str, pd.DataFrame]) -> pd.DataFrame:
 def display_profile_options(title="Scegli il profilo utente:"):
     print(f"\n{title}")
     for i, (name, params) in enumerate(USER_PROFILES.items()):
-        if name == 'conservativo': desc = "Massima priorità alla salute della batteria e alla sicurezza."
+        if name == 'conservativo': desc = "Priorità alla sicurezza, inizia e finisce con molta carica."
         elif name == 'bilanciato': desc = "Equilibrio tra guadagno e salute della batteria (standard)."
-        elif name == 'aggressivo': desc = "Massimizza il profitto, accettando maggior rischio e degradazione."
+        elif name == 'aggressivo': desc = "Massimizza il profitto, accettando maggior rischio."
         print(f"  {i+1}) {name.capitalize()}: {desc}")
-        print(f"     (SoC Min: {params['soc_min_utente']*100:.0f}%, Target Finale: {params['soc_target_finale']*100:.0f}%)")
+        print(f"     (SoC Iniziale: {params['initial_soc']*100:.0f}%, SoC Min: {params['soc_min_utente']*100:.0f}%, Target Finale: {params['soc_target_finale']*100:.0f}%)")
 
 # ========================================================================
 # ESECUZIONE PRINCIPALE
@@ -321,10 +322,7 @@ def run_full_simulation(vehicle_config, sim_config):
     _, test_profiles = create_daily_profiles(price_data)
     if not test_profiles: return
 
-    # Caricamento dinamico agenti RL
-    profile_name = sim_config['profile_name']
-    chem_name = vehicle_config['chem_name']
-
+    profile_name, chem_name = sim_config['profile_name'], vehicle_config['chem_name']
     q_table_path = os.path.join('q_tables', f"q_table_{profile_name}_{chem_name}.npy")
     q_table = np.load(q_table_path) if os.path.exists(q_table_path) else None
     if q_table is None: print(f"ATTENZIONE: Q-table '{q_table_path}' non trovata. Sarà saltata.")
@@ -349,8 +347,8 @@ def run_full_simulation(vehicle_config, sim_config):
 
     strategies_to_run = {"Euristica": optimizer.run_heuristic_strategy, "LCVF": optimizer.run_lcvf_strategy,
                          f"MPC (O={sim_config['mpc_horizon']}h)": optimizer.run_mpc_strategy}
-    if q_table is not None: strategies_to_run['RL (Tabulare)'] = lambda: optimizer.run_rl_strategy(q_table)
-    if dqn_agent: strategies_to_run['DQN'] = lambda: optimizer.run_dqn_strategy(dqn_agent)
+    if q_table is not None: strategies_to_run[f'RL (Tab_{chem_name[:3]})'] = lambda: optimizer.run_rl_strategy(q_table)
+    if dqn_agent: strategies_to_run[f'DQN ({chem_name[:3]})'] = lambda: optimizer.run_dqn_strategy(dqn_agent)
 
     for name, func in strategies_to_run.items():
         print(f"\n--- Dettaglio Orario Strategia: {name} ---")
@@ -362,7 +360,7 @@ def run_full_simulation(vehicle_config, sim_config):
         print(df_display[['Ora', 'Azione', 'SoC Iniziale (%)', 'Variazione SoC (%)', 'Costo Energia (€)', 'Ricavo Energia (€)', 'Costo Degradazione (€)', 'Costo Ansia (€)']].to_string(index=False))
 
     print("\n" + "="*80)
-    print(f"RISULTATI CONFRONTO FINALE - Profilo: {sim_config['profile_name'].upper()}, Batteria: {chem_name.upper()}")
+    print(f"RISULTATI CONFRONTO FINALE - Profilo: {profile_name.upper()}, Batteria: {chem_name.upper()}")
     print("="*80)
     comparison_df = compare_strategies(results)
     print(comparison_df.to_string(index=False))
@@ -373,8 +371,9 @@ def main():
         print("\n--- MENU PRINCIPALE - CRUSCOTTO DI ANALISI V2G ---")
         print("1) Esegui una singola simulazione (configurabile)")
         print("2) Esegui analisi di sensibilità (su un profilo utente)")
-        print("3) Esci")
-        choice = input("Scelta [1-3]: ").strip()
+        print("3) Pulisci tutti i modelli e le Q-table addestrrate")
+        print("4) Esci")
+        choice = input("Scelta [1-4]: ").strip()
 
         if choice == '1':
             profile_map = {str(i+1): p for i, p in enumerate(USER_PROFILES.keys())}
@@ -410,7 +409,21 @@ def main():
                 vehicle_config = {**BASE_VEHICLE_PARAMS, **BATTERY_CHEMISTRIES[chem_name], 'chem_name': chem_name}
                 run_full_simulation(vehicle_config, sim_config)
         
-        elif choice == '3': print("Uscita."); break
+        elif choice == '3':
+            print("\n--- PULIZIA DEI MODELLI ADDESTRATI ---")
+            confirm = input("Sei sicuro di voler eliminare tutti i file .pth e .npy? Questa azione è irreversibile. [s/N]: ").strip().lower()
+            if confirm == 's':
+                deleted_files = 0
+                for file in os.listdir():
+                    if file.endswith('.pth'): os.remove(file); deleted_files += 1
+                if os.path.exists('q_tables'):
+                    for file in os.listdir('q_tables'):
+                        if file.endswith('.npy'): os.remove(os.path.join('q_tables', file)); deleted_files += 1
+                print(f"Pulizia completata. {deleted_files} file eliminati.")
+            else:
+                print("Azione annullata.")
+
+        elif choice == '4': print("Uscita."); break
         else: print("Scelta non valida.")
 
 if __name__ == "__main__":
