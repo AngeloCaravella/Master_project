@@ -1,10 +1,9 @@
 # ========================================================================
 # V2G Q-TABLE BATCH TRAINER
 # Author: Angelo Caravella 
-# Version: 1.1
-# Description: Strumento di addestramento automatico per Q-table. Implementa
-#              configurazioni di profilo utente corrette (con SoC iniziale
-#              dinamico) e una logica di Early Stopping per un training efficiente.
+# Version: 1.2
+# Description: Aggiunge una logica di Early Stopping robusta basata su una
+#              soglia di miglioramento minima (min_delta).
 # ========================================================================
 
 import numpy as np
@@ -13,6 +12,7 @@ import random
 import os
 import sys
 from typing import Dict, List, Tuple
+import multiprocessing
 
 # ========================================================================
 # CONFIGURAZIONI PREDEFINITE
@@ -20,34 +20,28 @@ from typing import Dict, List, Tuple
 
 USER_PROFILES = {
     'conservativo': {
-        'initial_soc': 0.70,
-        'soc_min_utente': 0.60, 
-        'penalita_ansia': 0.02, 
-        'soc_target_finale': 0.70,
+        'initial_soc': 0.70, 'soc_min_utente': 0.60, 'penalita_ansia': 0.02, 'soc_target_finale': 0.70,
     },
     'bilanciato': {
-        'initial_soc': 0.50,
-        'soc_min_utente': 0.30, 
-        'penalita_ansia': 0.01, 
-        'soc_target_finale': 0.50,
+        'initial_soc': 0.50, 'soc_min_utente': 0.30, 'penalita_ansia': 0.01, 'soc_target_finale': 0.50,
     },
     'aggressivo': {
-        'initial_soc': 0.20,
-        'soc_min_utente': 0.15, 
-        'penalita_ansia': 0.005, 
-        'soc_target_finale': 0.20,
+        'initial_soc': 0.20, 'soc_min_utente': 0.15, 'penalita_ansia': 0.005, 'soc_target_finale': 0.20,
     }
 }
 
 BATTERY_CHEMISTRIES = {
     'nca': {
-        'degradation_model': 'nca', 'costo_batteria': 150 * 60
+        'degradation_model': 'nca',
+        'costo_batteria': 120  # €/kWh - più costosa, alta densità energetica
     },
     'lfp': {
-        'degradation_model': 'lfp', 'costo_batteria': 110 * 60
+        'degradation_model': 'lfp',
+        'costo_batteria': 90   # €/kWh - più economica, meno densa, più cicli
     },
     'semplice': {
-        'degradation_model': 'simple', 'costo_batteria': 150 * 60
+        'degradation_model': 'simple',
+        'costo_batteria': 70   # €/kWh - modello iper-semplificato o legacy
     }
 }
 
@@ -57,13 +51,14 @@ BASE_VEHICLE_PARAMS = {
 }
 
 RL_PARAMS = {
-    'states_ora': 24, 'states_soc': 11, 'alpha': 0.1, 'gamma': 0.98,
-    'epsilon': 1.0, 'epsilon_decay': 0.99985, 'epsilon_min': 0.01, 'episodes': 100000,
-    'early_stopping_patience': 100 # N. di controlli (x100 episodi) senza miglioramenti prima di fermarsi
+    'states_ora': 24, 'states_soc': 11, 'states_battery': 3, 'alpha': 0.1, 'gamma': 0.98,
+    'epsilon': 0.01, 'episodes': 100000,
+    'early_stopping_patience': 100, # N. di controlli (x100 episodi)
+    'early_stopping_min_delta': 0.01 # Miglioramento minimo per resettare la pazienza
 }
 
 # ========================================================================
-# CLASSI DI SIMULAZIONE
+# CLASSI DI SIMULAZIONE (Invariate)
 # ========================================================================
 
 class BatteryDegradationModel:
@@ -133,13 +128,18 @@ class RLAgentTrainer:
     def train(self, training_daily_profiles: List[Dict[int, float]], q_table_path: str):
         print(f"\n--- AVVIO ADDESTRAMENTO PER Q-TABLE '{q_table_path}' ---")
         rl_p = RL_PARAMS
-        q_table = np.zeros((rl_p['states_ora'], rl_p['states_soc'], len(self.actions_map)))
+        # Mappatura da nome chimica a indice numerico
+        battery_chem_map = {name: i for i, name in enumerate(BATTERY_CHEMISTRIES.keys())}
+        battery_idx = battery_chem_map[self.degradation_model_type]
+
+        # La Q-table ora ha una dimensione in più per la chimica della batteria
+        q_table = np.zeros((rl_p['states_ora'], rl_p['states_soc'], rl_p['states_battery'], len(self.actions_map)))
         best_q_table = np.copy(q_table)
         epsilon = rl_p['epsilon']
         
-        # Parametri per Early Stopping
         best_avg_reward = -np.inf
-        patience = rl_p.get('early_stopping_patience', 100)
+        patience = rl_p['early_stopping_patience']
+        min_delta = rl_p['early_stopping_min_delta']
         patience_counter = 0
         total_rewards = []
 
@@ -149,25 +149,25 @@ class RLAgentTrainer:
             episode_reward = 0
             for ora in range(rl_p['states_ora']):
                 soc_discrete = self._discretize_soc(soc, rl_p['states_soc'])
-                azione = random.randint(0, len(self.actions_map) - 1) if random.random() < epsilon else np.argmax(q_table[ora, soc_discrete])
+                # Indicizzazione con la nuova dimensione
+                azione = random.randint(0, len(self.actions_map) - 1) if random.random() < epsilon else np.argmax(q_table[ora, soc_discrete, battery_idx])
                 new_soc, reward = self._get_rl_step_result(soc, ora, azione, episode_prices, last_hour=(ora == rl_p['states_ora'] - 1))
                 episode_reward += reward
                 new_soc_discrete = self._discretize_soc(new_soc, rl_p['states_soc'])
                 next_q_value = 0
-                if ora < rl_p['states_ora'] - 1: next_q_value = np.max(q_table[ora + 1, new_soc_discrete])
-                current_q = q_table[ora, soc_discrete, azione]
+                if ora < rl_p['states_ora'] - 1: 
+                    next_q_value = np.max(q_table[ora + 1, new_soc_discrete, battery_idx])
+                current_q = q_table[ora, soc_discrete, battery_idx, azione]
                 new_q = (1 - rl_p['alpha']) * current_q + rl_p['alpha'] * (reward + rl_p['gamma'] * next_q_value)
-                q_table[ora, soc_discrete, azione] = new_q
+                q_table[ora, soc_discrete, battery_idx, azione] = new_q
                 soc = new_soc
             
             total_rewards.append(episode_reward)
-            epsilon = max(rl_p['epsilon_min'], epsilon * rl_p['epsilon_decay'])
 
-            # Logica di Early Stopping
             if (episode + 1) % 100 == 0:
                 avg_reward = np.mean(total_rewards[-100:])
                 print(f"Episodio {episode + 1}/{rl_p['episodes']}, Avg Reward (100 ep): {avg_reward:.2f}, Epsilon: {epsilon:.4f}")
-                if avg_reward > best_avg_reward:
+                if avg_reward > best_avg_reward + min_delta:
                     best_avg_reward = avg_reward
                     best_q_table = np.copy(q_table)
                     patience_counter = 0
@@ -176,7 +176,7 @@ class RLAgentTrainer:
                     patience_counter += 1
                 
                 if patience_counter >= patience:
-                    print(f"\nATTENZIONE: Nessun miglioramento per {patience * 100} episodi. Interruzione anticipata.")
+                    print(f"\nATTENZIONE: Nessun miglioramento significativo per {patience * 100} episodi. Interruzione anticipata.")
                     break
 
         q_table_dir = os.path.dirname(q_table_path)
@@ -185,7 +185,7 @@ class RLAgentTrainer:
         print(f"--- Addestramento completato! Tabella migliore salvata in '{q_table_path}' con Avg Reward: {best_avg_reward:.2f} ---")
 
 # ========================================================================
-# FUNZIONI AUSILIARIE
+# FUNZIONI AUSILIARIE (Invariate)
 # ========================================================================
 
 def load_price_data(file_path: str = "downloads/PrezziZonali.xlsx") -> pd.DataFrame:
@@ -209,8 +209,29 @@ def create_daily_profiles(df: pd.DataFrame, test_zone: str = "Italia") -> List[D
     return training_profiles
 
 # ========================================================================
-# ESECUZIONE AUTOMATICA
+# ESECUZIONE AUTOMATICA (Invariata)
 # ========================================================================
+
+def train_single_q_table(args):
+    profile_name, chem_name, training_profiles, BASE_VEHICLE_PARAMS, USER_PROFILES, BATTERY_CHEMISTRIES = args
+
+    q_table_path = os.path.join('q_tables', f"q_table_{profile_name}_{chem_name}.npy")
+    print("\n" + "-"*60)
+    print(f"Verifica combinazione: Profilo '{profile_name.capitalize()}', Batteria '{chem_name.upper()}'")
+    print(f"File tabella target: '{q_table_path}'")
+
+    if os.path.exists(q_table_path):
+        print("STATO: Trovata. Addestramento saltato.")
+        return 0 # 0 trained, 1 skipped
+    
+    print("STATO: Non trovata. Avvio addestramento...")
+
+    sim_config = {**USER_PROFILES[profile_name]}
+    vehicle_config = {**BASE_VEHICLE_PARAMS, **BATTERY_CHEMISTRIES[chem_name]}
+    
+    trainer = RLAgentTrainer(vehicle_config, sim_config)
+    trainer.train(training_profiles, q_table_path)
+    return 1 # 1 trained, 0 skipped
 
 def main():
     print("--- TRAINER AUTOMATICO PER Q-TABLES V2G ---")
@@ -223,28 +244,20 @@ def main():
         print("Nessun profilo di prezzo valido per il training. Uscita.", file=sys.stderr)
         return
 
+    tasks = []
+    for profile_name, _ in USER_PROFILES.items():
+        for chem_name, _ in BATTERY_CHEMISTRIES.items():
+            tasks.append((profile_name, chem_name, training_profiles, BASE_VEHICLE_PARAMS, USER_PROFILES, BATTERY_CHEMISTRIES))
+
     trained_count, skipped_count = 0, 0
 
-    for profile_name, profile_params in USER_PROFILES.items():
-        for chem_name, chem_params in BATTERY_CHEMISTRIES.items():
-            q_table_path = os.path.join('q_tables', f"q_table_{profile_name}_{chem_name}.npy")
-            print("\n" + "-"*60)
-            print(f"Verifica combinazione: Profilo '{profile_name.capitalize()}', Batteria '{chem_name.upper()}'")
-            print(f"File tabella target: '{q_table_path}'")
-
-            if os.path.exists(q_table_path):
-                print("STATO: Trovata. Addestramento saltato.")
-                skipped_count += 1
-                continue
-            
-            print("STATO: Non trovata. Avvio addestramento...")
-            trained_count += 1
-
-            sim_config = {**profile_params}
-            vehicle_config = {**BASE_VEHICLE_PARAMS, **chem_params}
-            
-            trainer = RLAgentTrainer(vehicle_config, sim_config)
-            trainer.train(training_profiles, q_table_path)
+    # Usa un Pool di processi per eseguire gli addestramenti in parallelo
+    # Il numero di processi è di default il numero di core della CPU
+    with multiprocessing.Pool() as pool:
+        results = pool.map(train_single_q_table, tasks)
+    
+    trained_count = sum(results)
+    skipped_count = len(results) - trained_count
 
     print("\n" + "="*60)
     print("PROCESSO DI ADDESTRAMENTO DI MASSA COMPLETATO")
@@ -254,4 +267,6 @@ def main():
     print("="*60)
 
 if __name__ == "__main__":
+    # Questo è fondamentale per il multiprocessing su Windows
+    multiprocessing.freeze_support()
     main()
