@@ -1,0 +1,126 @@
+digraph G {
+concentrate=true;
+splines="ortho";
+rankdir="LR";
+subgraph legend{
+    rank = min;
+    label = "legend";
+    Legend [shape=none, margin=0, label = <
+        <table cellspacing="0" cellpadding="0" border="1"><tr><td>Code2flow Legend</td></tr><tr><td>
+        <table cellspacing="0">
+        <tr><td>Regular function</td><td width="50px" bgcolor='#cccccc'></td></tr>
+        <tr><td>Trunk function (nothing calls this)</td><td bgcolor='#966F33'></td></tr>
+        <tr><td>Leaf function (this calls nothing else)</td><td bgcolor='#6db33f'></td></tr>
+        <tr><td>Function call</td><td><font color='black'>&#8594;</font></td></tr>
+        </table></td></tr></table>
+        >];
+}node_7023fb85 [label="0: (global)()" name="DQN_Generalist_Trainer::(global)" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_737789da [label="68: __init__()" name="DQN_Generalist_Trainer::BatteryDegradationModel.__init__" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_ed714868 [label="70: _cycle_life_phi_nca()" name="DQN_Generalist_Trainer::BatteryDegradationModel._cycle_life_phi_nca" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_2279e859 [label="73: cost_lfp_model()" name="DQN_Generalist_Trainer::BatteryDegradationModel.cost_lfp_model" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_2709e9c6 [label="75: cost_nca_model()" name="DQN_Generalist_Trainer::BatteryDegradationModel.cost_nca_model" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_504b7759 [label="72: cost_simple_linear()" name="DQN_Generalist_Trainer::BatteryDegradationModel.cost_simple_linear" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_bbbf8a3b [label="132: __init__()" name="DQN_Generalist_Trainer::DQNAgent.__init__" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_c706d12c [label="137: get_policy_state_dict()" name="DQN_Generalist_Trainer::DQNAgent.get_policy_state_dict" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_9df80caa [label="143: learn()" name="DQN_Generalist_Trainer::DQNAgent.learn" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_65dc38f6 [label="151: load_model()" name="DQN_Generalist_Trainer::DQNAgent.load_model" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_4024174b [label="139: remember()" name="DQN_Generalist_Trainer::DQNAgent.remember" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_a30f8723 [label="150: save_model()" name="DQN_Generalist_Trainer::DQNAgent.save_model" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_1c095ebb [label="136: update_target_network()" name="DQN_Generalist_Trainer::DQNAgent.update_target_network" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_871b47dd [label="127: __init__()" name="DQN_Generalist_Trainer::QNetwork.__init__" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_cd9c23de [label="157: __init__()" name="DQN_Generalist_Trainer::RewardScaler.__init__" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_14c15689 [label="158: scale()" name="DQN_Generalist_Trainer::RewardScaler.scale" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_ae6fcb4e [label="82: __init__()" name="DQN_Generalist_Trainer::V2G_Environment.__init__" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_06c69bff [label="94: _calculate_degradation_cost()" name="DQN_Generalist_Trainer::V2G_Environment._calculate_degradation_cost" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_cdaf4bbd [label="98: _calculate_reward()" name="DQN_Generalist_Trainer::V2G_Environment._calculate_reward" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_8d728ef3 [label="90: _get_state()" name="DQN_Generalist_Trainer::V2G_Environment._get_state" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_6960c7f3 [label="85: reset()" name="DQN_Generalist_Trainer::V2G_Environment.reset" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_e0a8ab3e [label="109: step()" name="DQN_Generalist_Trainer::V2G_Environment.step" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_aa9ad98e [label="171: create_daily_profiles()" name="DQN_Generalist_Trainer::create_daily_profiles" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_dc59f6f7 [label="188: generate_deterministic_episode_config()" name="DQN_Generalist_Trainer::generate_deterministic_episode_config" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_b2e34521 [label="349: get_user_input()" name="DQN_Generalist_Trainer::get_user_input" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_4fc8e415 [label="161: load_price_data()" name="DQN_Generalist_Trainer::load_price_data" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_caf12648 [label="358: main()" name="DQN_Generalist_Trainer::main" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_90b6e5d3 [label="265: run_training()" name="DQN_Generalist_Trainer::run_training" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_a5b69247 [label="226: worker_process()" name="DQN_Generalist_Trainer::worker_process" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_7023fb85 -> node_caf12648 [color="#0072B2" penwidth="2"];
+node_2709e9c6 -> node_ed714868 [color="#D55E00" penwidth="2"];
+node_2709e9c6 -> node_ed714868 [color="#D55E00" penwidth="2"];
+node_bbbf8a3b -> node_1c095ebb [color="#009E73" penwidth="2"];
+node_bbbf8a3b -> node_871b47dd [color="#009E73" penwidth="2"];
+node_bbbf8a3b -> node_871b47dd [color="#009E73" penwidth="2"];
+node_bbbf8a3b -> node_cd9c23de [color="#009E73" penwidth="2"];
+node_9df80caa -> node_e0a8ab3e [color="#56B4E9" penwidth="2"];
+node_65dc38f6 -> node_1c095ebb [color="#D55E00" penwidth="2"];
+node_06c69bff -> node_2279e859 [color="#CC79A7" penwidth="2"];
+node_06c69bff -> node_2709e9c6 [color="#CC79A7" penwidth="2"];
+node_06c69bff -> node_504b7759 [color="#CC79A7" penwidth="2"];
+node_6960c7f3 -> node_737789da [color="#009E73" penwidth="2"];
+node_6960c7f3 -> node_8d728ef3 [color="#009E73" penwidth="2"];
+node_e0a8ab3e -> node_06c69bff [color="#D55E00" penwidth="2"];
+node_e0a8ab3e -> node_cdaf4bbd [color="#D55E00" penwidth="2"];
+node_e0a8ab3e -> node_8d728ef3 [color="#D55E00" penwidth="2"];
+node_caf12648 -> node_bbbf8a3b [color="#000000" penwidth="2"];
+node_caf12648 -> node_65dc38f6 [color="#000000" penwidth="2"];
+node_caf12648 -> node_aa9ad98e [color="#000000" penwidth="2"];
+node_caf12648 -> node_b2e34521 [color="#000000" penwidth="2"];
+node_caf12648 -> node_b2e34521 [color="#000000" penwidth="2"];
+node_caf12648 -> node_b2e34521 [color="#000000" penwidth="2"];
+node_caf12648 -> node_4fc8e415 [color="#000000" penwidth="2"];
+node_caf12648 -> node_90b6e5d3 [color="#000000" penwidth="2"];
+node_90b6e5d3 -> node_c706d12c [color="#009E73" penwidth="2"];
+node_90b6e5d3 -> node_9df80caa [color="#009E73" penwidth="2"];
+node_90b6e5d3 -> node_4024174b [color="#009E73" penwidth="2"];
+node_90b6e5d3 -> node_a30f8723 [color="#009E73" penwidth="2"];
+node_90b6e5d3 -> node_a30f8723 [color="#009E73" penwidth="2"];
+node_90b6e5d3 -> node_1c095ebb [color="#009E73" penwidth="2"];
+node_a5b69247 -> node_871b47dd [color="#CC79A7" penwidth="2"];
+node_a5b69247 -> node_cd9c23de [color="#CC79A7" penwidth="2"];
+node_a5b69247 -> node_14c15689 [color="#CC79A7" penwidth="2"];
+node_a5b69247 -> node_ae6fcb4e [color="#CC79A7" penwidth="2"];
+node_a5b69247 -> node_6960c7f3 [color="#CC79A7" penwidth="2"];
+node_a5b69247 -> node_e0a8ab3e [color="#CC79A7" penwidth="2"];
+node_a5b69247 -> node_dc59f6f7 [color="#CC79A7" penwidth="2"];
+subgraph cluster_eac6681f {
+    node_4fc8e415 node_aa9ad98e node_dc59f6f7 node_a5b69247 node_90b6e5d3 node_b2e34521 node_caf12648 node_7023fb85;
+    label="File: DQN_Generalist_Trainer";
+    name="DQN_Generalist_Trainer";
+    style="filled";
+    graph[style=dotted];
+    subgraph cluster_fa83c2a2 {
+        node_737789da node_ed714868 node_504b7759 node_2279e859 node_2709e9c6;
+        label="Class: BatteryDegradationModel";
+        name="BatteryDegradationModel";
+        style="filled";
+        graph[style=dotted];
+    };
+    subgraph cluster_acea251a {
+        node_ae6fcb4e node_6960c7f3 node_8d728ef3 node_06c69bff node_cdaf4bbd node_e0a8ab3e;
+        label="Class: V2G_Environment";
+        name="V2G_Environment";
+        style="filled";
+        graph[style=dotted];
+    };
+    subgraph cluster_57b7799c {
+        node_871b47dd;
+        label="Class: QNetwork";
+        name="QNetwork";
+        style="filled";
+        graph[style=dotted];
+    };
+    subgraph cluster_07de7e74 {
+        node_bbbf8a3b node_1c095ebb node_c706d12c node_4024174b node_9df80caa node_a30f8723 node_65dc38f6;
+        label="Class: DQNAgent";
+        name="DQNAgent";
+        style="filled";
+        graph[style=dotted];
+    };
+    subgraph cluster_d3452922 {
+        node_cd9c23de node_14c15689;
+        label="Class: RewardScaler";
+        name="RewardScaler";
+        style="filled";
+        graph[style=dotted];
+    };
+};
+}

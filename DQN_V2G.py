@@ -123,35 +123,33 @@ class V2G_Environment:
         if self.degradation_model_type == 'lfp': return self.degradation_calc.cost_lfp_model(energy_kwh)
         elif self.degradation_model_type == 'nca': return self.degradation_calc.cost_nca_model(soc_start, soc_end)
         else: return self.degradation_calc.cost_simple_linear(energy_kwh)
-    def step(self, action: int) -> Tuple[np.ndarray, float, bool]:
-        soc_start = self.current_soc
-        price = self.current_prices.get(self.current_hour, 0)
-        power_kwh = 0
-        if self.actions_map[action] == 'Carica' and soc_start < self.vehicle_params['soc_max']: power_kwh = self.vehicle_params['p_carica']
-        elif self.actions_map[action] == 'Scarica' and soc_start > self.vehicle_params['soc_min_batteria']: power_kwh = -self.vehicle_params['p_scarica']
-        energy_cost, energy_revenue, energy_processed_kwh = 0, 0, 0
-        soc_end = soc_start
-        if power_kwh > 0:
-            energy_stored = power_kwh * self.vehicle_params['efficienza_carica']
-            soc_end += energy_stored / self.vehicle_params['capacita']
-            energy_cost = price * power_kwh
-            energy_processed_kwh = energy_stored
-        elif power_kwh < 0:
-            energy_drawn = -power_kwh / self.vehicle_params['efficienza_scarica']
-            soc_end -= energy_drawn / self.vehicle_params['capacita']
-            energy_revenue = price * -power_kwh
-            energy_processed_kwh = -energy_drawn
-        soc_end = np.clip(soc_end, 0, 1)
-        degradation_cost = self._calculate_degradation_cost(soc_start, soc_end, energy_processed_kwh)
-        anxiety_cost = 0
-        if soc_end < self.sim_params['soc_min_utente']: anxiety_cost = self.sim_params['penalita_ansia'] * (self.sim_params['soc_min_utente'] - soc_end) * 100
-        reward = energy_revenue - energy_cost - degradation_cost - anxiety_cost
-        self.current_soc = soc_end
-        self.current_hour += 1
+    def _calculate_reward(self, revenue, cost, degradation, soc_end, action, soc_start) -> float:
+        reward = revenue - cost - degradation
+        if soc_end < self.sim_params['soc_min_utente']: reward -= self.sim_params['penalita_ansia'] * (self.sim_params['soc_min_utente'] - soc_end) * 100
+        action_str = self.actions_map[action]
+        if (action_str == 'Carica' and soc_start >= self.vehicle_params['soc_max']) or (action_str == 'Scarica' and soc_start <= self.vehicle_params['soc_min_batteria']): reward -= 0.1
         done = self.current_hour >= 23
         if done:
             target_soc = self.sim_params['soc_target_finale']
-            if self.current_soc < target_soc: reward -= self.sim_params['penalita_ansia'] * 5 * (target_soc - self.current_soc) * 100
+            if soc_end < target_soc: reward -= self.sim_params['penalita_ansia'] * 20 * (target_soc - soc_end) * 100
+            else: reward += 5.0
+        return reward
+
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool]:
+        soc_start = self.current_soc; price = self.current_prices.get(self.current_hour, 0); power_kwh = 0
+        if self.actions_map[action] == 'Carica' and soc_start < self.vehicle_params['soc_max']: power_kwh = self.vehicle_params['p_carica']
+        elif self.actions_map[action] == 'Scarica' and soc_start > self.vehicle_params['soc_min_batteria']: power_kwh = -self.vehicle_params['p_scarica']
+        energy_cost, energy_revenue, energy_processed_kwh = 0, 0, 0; soc_end = soc_start
+        if power_kwh > 0:
+            energy_stored = power_kwh * self.vehicle_params['efficienza_carica']; soc_end += energy_stored / self.vehicle_params['capacita']
+            energy_cost = price * power_kwh; energy_processed_kwh = energy_stored
+        elif power_kwh < 0:
+            energy_drawn = -power_kwh / self.vehicle_params['efficienza_scarica']; soc_end -= energy_drawn / self.vehicle_params['capacita']
+            energy_revenue = price * -power_kwh; energy_processed_kwh = -energy_drawn
+        soc_end = np.clip(soc_end, 0, 1); degradation_cost = self._calculate_degradation_cost(soc_start, soc_end, energy_processed_kwh)
+        self.current_hour += 1
+        reward = self._calculate_reward(energy_revenue, energy_cost, degradation_cost, soc_end, action, soc_start)
+        self.current_soc = soc_end; done = self.current_hour >= 24
         return self._get_state(), reward, done
 
 class QNetwork(nn.Module):
@@ -240,15 +238,18 @@ def load_price_data(file_path: str = "downloads/PrezziZonali.xlsx") -> pd.DataFr
         return df
     except FileNotFoundError: print(f"ERRORE: File prezzi '{file_path}' non trovato.", file=sys.stderr); sys.exit(1)
 
-def create_daily_profiles(df: pd.DataFrame, test_zone: str = "Italia") -> List[Dict]:
-    all_zones = [col for col in df.columns if col not in ['Ora', 'Data']]
-    training_zones = [z for z in all_zones if z != test_zone]
-    training_profiles = []
-    for zone in training_zones:
-        zone_prices = df[zone].dropna()
-        for i in range(0, len(zone_prices), 24):
-            if len(zone_prices.iloc[i:i+24]) == 24: training_profiles.append({h: p for h, p in enumerate(zone_prices.iloc[i:i+24])})
-    return training_profiles
+def create_daily_profiles(df: pd.DataFrame, target_zone: str, num_days: int):
+    if target_zone not in df.columns: print(f"ERRORE: La colonna '{target_zone}' non esiste.", file=sys.stderr); sys.exit(1)
+    print(f"INFO: Estraggo dati dalla colonna '{target_zone}'.")
+    all_profiles_from_zone = []
+    zone_prices = df[target_zone].dropna()
+    for i in range(0, len(zone_prices), 24):
+        if len(zone_prices.iloc[i:i+24]) == 24: all_profiles_from_zone.append({h: p for h, p in enumerate(zone_prices.iloc[i:i+24])})
+    if not all_profiles_from_zone: print(f"ERRORE: Nessun profilo completo trovato per '{target_zone}'.", file=sys.stderr); sys.exit(1)
+    random.shuffle(all_profiles_from_zone)
+    selected_profiles = all_profiles_from_zone[:min(num_days, len(all_profiles_from_zone))]
+    print(f"INFO: Trovati {len(all_profiles_from_zone)} giorni. Selezionati {len(selected_profiles)} giorni per il training.")
+    return selected_profiles
 
 def worker_process(worker_id, env_config_queue, experience_queue, policy_update_queue, daily_price_profiles, device, worker_batch_size, episode_result_queue):
     print(f"Worker {worker_id}: Avviato su {device}")
@@ -333,15 +334,18 @@ def load_price_data(file_path: str = "downloads/PrezziZonali.xlsx") -> pd.DataFr
         return df
     except FileNotFoundError: print(f"ERRORE: File prezzi '{file_path}' non trovato.", file=sys.stderr); sys.exit(1)
 
-def create_daily_profiles(df: pd.DataFrame, test_zone: str = "Italia") -> List[Dict]:
-    all_zones = [col for col in df.columns if col not in ['Ora', 'Data']]
-    training_zones = [z for z in all_zones if z != test_zone]
-    training_profiles = []
-    for zone in training_zones:
-        zone_prices = df[zone].dropna()
-        for i in range(0, len(zone_prices), 24):
-            if len(zone_prices.iloc[i:i+24]) == 24: training_profiles.append({h: p for h, p in enumerate(zone_prices.iloc[i:i+24])})
-    return training_profiles
+def create_daily_profiles(df: pd.DataFrame, target_zone: str, num_days: int):
+    if target_zone not in df.columns: print(f"ERRORE: La colonna '{target_zone}' non esiste.", file=sys.stderr); sys.exit(1)
+    print(f"INFO: Estraggo dati dalla colonna '{target_zone}'.")
+    all_profiles_from_zone = []
+    zone_prices = df[target_zone].dropna()
+    for i in range(0, len(zone_prices), 24):
+        if len(zone_prices.iloc[i:i+24]) == 24: all_profiles_from_zone.append({h: p for h, p in enumerate(zone_prices.iloc[i:i+24])})
+    if not all_profiles_from_zone: print(f"ERRORE: Nessun profilo completo trovato per '{target_zone}'.", file=sys.stderr); sys.exit(1)
+    random.shuffle(all_profiles_from_zone)
+    selected_profiles = all_profiles_from_zone[:min(num_days, len(all_profiles_from_zone))]
+    print(f"INFO: Trovati {len(all_profiles_from_zone)} giorni. Selezionati {len(selected_profiles)} giorni per il training.")
+    return selected_profiles
 
 # ========================================================================
 # CICLO DI ADDESTRAMENTO
@@ -451,44 +455,83 @@ def run_training(agent: DQNAgent, training_profiles: List[Dict], model_path: str
 # ESECUZIONE AUTOMATICA
 # ========================================================================
 
+def get_user_input(prompt: str, type_converter, validator, error_message="Input non valido. Riprova."):
+    while True:
+        try:
+            value = type_converter(input(prompt))
+            if validator(value):
+                return value
+            else:
+                print(error_message)
+        except (ValueError, TypeError):
+            print("Formato input non valido. Inserire un numero.")
+
 def main():
     print("--- TRAINER AUTOMATICO PER AGENTI DQN V2G ---")
     print("Controllo e addestramento di tutti i modelli mancanti...")
 
-    # Determina il device da usare (GPU se disponibile, altrimenti CPU)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Dispositivo di calcolo in uso: {device}")
 
     price_data = load_price_data()
-    training_profiles = create_daily_profiles(price_data)
+    available_zones = [col for col in price_data.columns if col not in ['Ora', 'Data']]
     
-    if not training_profiles: print("Nessun profilo di prezzo valido per il training. Uscita.", file=sys.stderr); return
+    print("Zone di prezzo disponibili:")
+    for i, zone in enumerate(available_zones):
+        print(f"  {i+1}) {zone}")
+    
+    zone_choice_idx = get_user_input(f"Scegli la zona di prezzo [1-{len(available_zones)}]: ", int, lambda x: 1 <= x <= len(available_zones)) - 1
+    target_zone = available_zones[zone_choice_idx]
+
+    max_days = len(price_data) // 24
+    num_days = get_user_input(f"Quanti giorni di dati usare per il training? (min 1, max {max_days}): ", int, lambda x: 1 <= x <= max_days)
+
+    training_profiles = create_daily_profiles(price_data, target_zone=target_zone, num_days=num_days)
+    
+    if not training_profiles: 
+        print("Nessun profilo di prezzo valido per il training. Uscita.", file=sys.stderr)
+        return
 
     trained_count, skipped_count = 0, 0
 
     for profile_name, profile_params in USER_PROFILES.items():
         for chem_name, chem_params in BATTERY_CHEMISTRIES.items():
             model_path = f"dqn_model_{profile_name}_{chem_name}.pth"
-            print("\n" + "-"*60)
+            print("" + "-"*60)
             print(f"Verifica combinazione: Profilo '{profile_name.capitalize()}', Batteria '{chem_name.upper()}'")
             print(f"File modello target: '{model_path}'")
 
             if os.path.exists(model_path):
-                print("STATO: Trovato. Addestramento saltato.")
-                skipped_count += 1
-                continue
-            
-            print("STATO: Non trovato. Avvio addestramento...")
-            trained_count += 1
+                print(f"STATO: Trovato modello esistente '{model_path}'.")
+                print("1) Salta addestramento")
+                print("2) Continua addestramento (Fine-Tune)")
+                print("3) Ricomincia da zero (Sovrascrivi)")
+                choice = get_user_input("Scegli un'opzione per questo modello [1-3]: ", str, lambda x: x in ['1', '2', '3'])
+                
+                if choice == '1':
+                    print("Addestramento saltato.")
+                    skipped_count += 1
+                    continue
+                elif choice == '2':
+                    try:
+                        agent = DQNAgent(device)
+                        agent.load_model(model_path)
+                        print("Modello caricato per fine-tuning.")
+                    except Exception as e:
+                        print(f"ERRORE: Impossibile caricare il modello. Errore: {e}", file=sys.stderr)
+                        print("L'addestramento partirà da zero.", file=sys.stderr)
+                        agent = DQNAgent(device)
+                elif choice == '3':
+                    print("Il modello esistente sarà sovrascritto al termine.")
+                    agent = DQNAgent(device)
+            else:
+                print("STATO: Non trovato. Avvio addestramento...")
+                agent = DQNAgent(device)
 
-            # L'ambiente principale è solo per i profili di prezzo, non per l'interazione diretta
-            # env = V2G_Environment(training_profiles, vehicle_config, sim_config) # Rimosso
-            agent = DQNAgent(device) # Passa il device all'agente
-            
-            # Passa il device anche alla funzione di training
+            trained_count += 1
             run_training(agent, training_profiles, model_path, device, profile_name, chem_name)
 
-    print("\n" + "="*60)
+    print("" + "="*60)
     print("PROCESSO DI ADDESTRAMENTO DI MASSA COMPLETATO")
     print(f"  - Modelli addestrati in questa sessione: {trained_count}")
     print(f"  - Modelli già esistenti e saltati: {skipped_count}")

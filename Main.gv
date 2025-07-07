@@ -1,0 +1,137 @@
+digraph G {
+concentrate=true;
+splines="ortho";
+rankdir="LR";
+subgraph legend{
+    rank = min;
+    label = "legend";
+    Legend [shape=none, margin=0, label = <
+        <table cellspacing="0" cellpadding="0" border="1"><tr><td>Code2flow Legend</td></tr><tr><td>
+        <table cellspacing="0">
+        <tr><td>Regular function</td><td width="50px" bgcolor='#cccccc'></td></tr>
+        <tr><td>Trunk function (nothing calls this)</td><td bgcolor='#966F33'></td></tr>
+        <tr><td>Leaf function (this calls nothing else)</td><td bgcolor='#6db33f'></td></tr>
+        <tr><td>Function call</td><td><font color='black'>&#8594;</font></td></tr>
+        </table></td></tr></table>
+        >];
+}node_1e5abdbe [label="0: (global)()" name="Main::(global)" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_93dfd11e [label="83: __init__()" name="Main::BatteryDegradationModel.__init__" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_9aa109fa [label="85: _cycle_life_phi_nca()" name="Main::BatteryDegradationModel._cycle_life_phi_nca" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_ddd1947c [label="88: cost_lfp_model()" name="Main::BatteryDegradationModel.cost_lfp_model" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_edb4d1fc [label="90: cost_nca_model()" name="Main::BatteryDegradationModel.cost_nca_model" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_5fcb6d77 [label="87: cost_simple_linear()" name="Main::BatteryDegradationModel.cost_simple_linear" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_b0d3ee39 [label="73: __init__()" name="Main::DQNAgentForEval.__init__" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_c4b950a6 [label="75: choose_action()" name="Main::DQNAgentForEval.choose_action" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_6e993992 [label="79: load_model()" name="Main::DQNAgentForEval.load_model" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_bfc3cd22 [label="66: __init__()" name="Main::QNetwork.__init__" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_b0e7e25d [label="97: __init__()" name="Main::V2GOptimizer.__init__" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_e0556378 [label="105: _calculate_anxiety_cost()" name="Main::V2GOptimizer._calculate_anxiety_cost" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_f13563ed [label="101: _calculate_degradation_cost()" name="Main::V2GOptimizer._calculate_degradation_cost" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_1c186bb8 [label="108: _calculate_terminal_soc_cost()" name="Main::V2GOptimizer._calculate_terminal_soc_cost" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_238e2ad0 [label="112: _run_simulation_loop()" name="Main::V2GOptimizer._run_simulation_loop" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_d79ce15c [label="152: _solve_mpc()" name="Main::V2GOptimizer._solve_mpc" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_e20c4a1b [label="171: run_dqn_strategy()" name="Main::V2GOptimizer.run_dqn_strategy" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_4cdc7fef [label="128: run_heuristic_strategy()" name="Main::V2GOptimizer.run_heuristic_strategy" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_e82126c6 [label="136: run_lcvf_strategy()" name="Main::V2GOptimizer.run_lcvf_strategy" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_af0b65dc [label="144: run_mpc_strategy()" name="Main::V2GOptimizer.run_mpc_strategy" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_3edfe699 [label="164: run_rl_strategy()" name="Main::V2GOptimizer.run_rl_strategy" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_8fb38ac6 [label="100: set_prices_for_simulation()" name="Main::V2GOptimizer.set_prices_for_simulation" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_347f99bc [label="212: compare_strategies()" name="Main::compare_strategies" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_7ccdaed7 [label="194: create_test_profiles()" name="Main::create_test_profiles" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_b9ae1629 [label="287: get_custom_sim_config()" name="Main::get_custom_sim_config" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_067b60fe [label="223: get_user_input()" name="Main::get_user_input" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_a27e9ce3 [label="186: load_price_data()" name="Main::load_price_data" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_0b05b15d [label="295: main()" name="Main::main" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_ece764ba [label="234: run_comparison_simulation()" name="Main::run_comparison_simulation" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_2f8edb63 [label="203: validate_config()" name="Main::validate_config" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_1e5abdbe -> node_0b05b15d [color="#D55E00" penwidth="2"];
+node_edb4d1fc -> node_9aa109fa [color="#F0E442" penwidth="2"];
+node_edb4d1fc -> node_9aa109fa [color="#F0E442" penwidth="2"];
+node_b0d3ee39 -> node_bfc3cd22 [color="#E69F00" penwidth="2"];
+node_b0e7e25d -> node_93dfd11e [color="#0072B2" penwidth="2"];
+node_f13563ed -> node_ddd1947c [color="#0072B2" penwidth="2"];
+node_f13563ed -> node_edb4d1fc [color="#0072B2" penwidth="2"];
+node_f13563ed -> node_5fcb6d77 [color="#0072B2" penwidth="2"];
+node_238e2ad0 -> node_e0556378 [color="#000000" penwidth="2"];
+node_238e2ad0 -> node_f13563ed [color="#000000" penwidth="2"];
+node_238e2ad0 -> node_1c186bb8 [color="#000000" penwidth="2"];
+node_d79ce15c -> node_e0556378 [color="#F0E442" penwidth="2"];
+node_d79ce15c -> node_f13563ed [color="#F0E442" penwidth="2"];
+node_d79ce15c -> node_1c186bb8 [color="#F0E442" penwidth="2"];
+node_e20c4a1b -> node_c4b950a6 [color="#009E73" penwidth="2"];
+node_e20c4a1b -> node_238e2ad0 [color="#009E73" penwidth="2"];
+node_4cdc7fef -> node_238e2ad0 [color="#CC79A7" penwidth="2"];
+node_e82126c6 -> node_238e2ad0 [color="#D55E00" penwidth="2"];
+node_af0b65dc -> node_238e2ad0 [color="#F0E442" penwidth="2"];
+node_af0b65dc -> node_d79ce15c [color="#F0E442" penwidth="2"];
+node_3edfe699 -> node_238e2ad0 [color="#E69F00" penwidth="2"];
+node_b9ae1629 -> node_067b60fe [color="#E69F00" penwidth="2"];
+node_b9ae1629 -> node_067b60fe [color="#E69F00" penwidth="2"];
+node_b9ae1629 -> node_067b60fe [color="#E69F00" penwidth="2"];
+node_0b05b15d -> node_7ccdaed7 [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_b9ae1629 [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_067b60fe [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_067b60fe [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_067b60fe [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_067b60fe [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_067b60fe [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_067b60fe [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_067b60fe [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_067b60fe [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_067b60fe [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_a27e9ce3 [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_ece764ba [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_ece764ba [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_ece764ba [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_ece764ba [color="#0072B2" penwidth="2"];
+node_0b05b15d -> node_ece764ba [color="#0072B2" penwidth="2"];
+node_ece764ba -> node_b0d3ee39 [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_b0d3ee39 [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_6e993992 [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_6e993992 [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_b0e7e25d [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_e20c4a1b [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_e20c4a1b [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_4cdc7fef [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_e82126c6 [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_af0b65dc [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_3edfe699 [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_8fb38ac6 [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_347f99bc [color="#56B4E9" penwidth="2"];
+node_ece764ba -> node_2f8edb63 [color="#56B4E9" penwidth="2"];
+subgraph cluster_07d72238 {
+    node_a27e9ce3 node_7ccdaed7 node_2f8edb63 node_347f99bc node_067b60fe node_ece764ba node_b9ae1629 node_0b05b15d node_1e5abdbe;
+    label="File: Main";
+    name="Main";
+    style="filled";
+    graph[style=dotted];
+    subgraph cluster_4878fd4d {
+        node_bfc3cd22;
+        label="Class: QNetwork";
+        name="QNetwork";
+        style="filled";
+        graph[style=dotted];
+    };
+    subgraph cluster_e14bf147 {
+        node_b0d3ee39 node_c4b950a6 node_6e993992;
+        label="Class: DQNAgentForEval";
+        name="DQNAgentForEval";
+        style="filled";
+        graph[style=dotted];
+    };
+    subgraph cluster_4b317136 {
+        node_93dfd11e node_9aa109fa node_5fcb6d77 node_ddd1947c node_edb4d1fc;
+        label="Class: BatteryDegradationModel";
+        name="BatteryDegradationModel";
+        style="filled";
+        graph[style=dotted];
+    };
+    subgraph cluster_498e8c98 {
+        node_b0e7e25d node_8fb38ac6 node_f13563ed node_e0556378 node_1c186bb8 node_238e2ad0 node_4cdc7fef node_e82126c6 node_af0b65dc node_d79ce15c node_3edfe699 node_e20c4a1b;
+        label="Class: V2GOptimizer";
+        name="V2GOptimizer";
+        style="filled";
+        graph[style=dotted];
+    };
+};
+}
